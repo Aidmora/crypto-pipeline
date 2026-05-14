@@ -1,0 +1,36 @@
+# Data
+data/bronze/
+data/silver/
+data/_checkpoints/
+*.parquet
+*.crc
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+venv/
+.venv/
+env/
+.env
+
+# Jupyter notebooks
+.ipynb_checkpoints/
+
+# Spark: archivos temporales y logs
+spark-warehouse/
+metastore_db/
+derby.log
+*.log
+
+# IDEs y editores
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Secrets
+.env.local
+secrets/
+*.pem
+*.key
