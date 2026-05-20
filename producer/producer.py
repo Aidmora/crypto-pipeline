@@ -7,15 +7,15 @@ en un topic de Kafka en formato JSON.
 
 import json
 import time
-
+import os
 import requests
 from kafka import KafkaProducer
 
 
 # Configuración
-KAFKA_BOOTSTRAP_SERVERS = "localhost:29092"
-KAFKA_TOPIC = "crypto-prices"
-FETCH_INTERVAL_SECONDS = 10
+KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:29092")
+KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "crypto-prices")
+FETCH_INTERVAL_SECONDS = int(os.getenv("FETCH_INTERVAL_SECONDS", "10"))
 
 COINGECKO_API_URL = "https://api.coingecko.com/api/v3/simple/price"
 COINS = ["bitcoin", "ethereum", "cardano", "solana", "polkadot"]
