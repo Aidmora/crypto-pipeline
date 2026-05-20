@@ -9,8 +9,15 @@ import json
 import time
 import os
 import requests
+import logging
 from kafka import KafkaProducer
 
+# Configuración de logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("crypto-producer")
 
 # Configuración
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:29092")
@@ -58,7 +65,7 @@ def main():
         bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
         value_serializer=lambda v: json.dumps(v).encode("utf-8"),
     )
-    print(f"Producer conectado a {KAFKA_BOOTSTRAP_SERVERS}")
+    logger.info(f"Producer conectado a {KAFKA_BOOTSTRAP_SERVERS}")
 
     # Loop principal
     while True:
@@ -67,11 +74,11 @@ def main():
             records = build_records(api_data)
             for record in records:
                 producer.send(KAFKA_TOPIC, value=record)
-                print(f"Enviado: {record['coin']} = ${record['price_usd']}")
+                logger.info(f"Enviado: {record['coin']} = ${record['price_usd']}")
             producer.flush()
             time.sleep(FETCH_INTERVAL_SECONDS)
         except Exception as e:
-            print(f"Error: {e}")
+            logger.error(f"Error: {e}")
             time.sleep(FETCH_INTERVAL_SECONDS)
 
 
