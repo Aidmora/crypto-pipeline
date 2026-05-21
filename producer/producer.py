@@ -51,19 +51,37 @@ def fetch_crypto_prices():
     return response.json()
 
 
+def is_valid_record(record):
+    """Valida que el registro tenga los campos críticos no nulos."""
+    if record.get("price_usd") is None:
+        return False
+    if record["price_usd"] <= 0:
+        return False
+    if not record.get("coin"):
+        return False
+    return True
+
+
 def build_records(api_data):
-    """Transforma la respuesta de la API en registros normalizados."""
+    """Transforma la respuesta de la API en registros normalizados y validados."""
     timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     records = []
+    
     for coin, metrics in api_data.items():
-        records.append({
+        record = {
             "coin": coin,
             "price_usd": metrics.get("usd"),
             "market_cap_usd": metrics.get("usd_market_cap"),
             "volume_24h_usd": metrics.get("usd_24h_vol"),
             "change_24h_pct": metrics.get("usd_24h_change"),
             "timestamp": timestamp,
-        })
+        }
+        
+        if is_valid_record(record):
+            records.append(record)
+        else:
+            logger.warning(f"Registro inválido descartado: {coin}")
+    
     return records
 
 
