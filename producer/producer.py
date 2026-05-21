@@ -4,7 +4,7 @@ Crypto Price Producer.
 Consulta los precios de criptomonedas desde CoinGecko y los publica
 en un topic de Kafka en formato JSON.
 """
-
+import signal
 import json
 import time
 import os
@@ -12,7 +12,8 @@ import requests
 import logging
 from kafka import KafkaProducer
 from kafka.errors import NoBrokersAvailable, UnrecognizedBrokerVersion, KafkaConnectionError
-
+# Flag global para apagado limpio
+running = True
 # Configuración de logging
 logging.basicConfig(
     level=logging.INFO,
@@ -29,6 +30,12 @@ COINGECKO_API_URL = "https://api.coingecko.com/api/v3/simple/price"
 COINS = ["bitcoin", "ethereum", "cardano", "solana", "polkadot"]
 VS_CURRENCY = "usd"
 
+
+def handle_shutdown(signum, frame):
+    """Maneja Ctrl+C / SIGTERM para apagar el producer limpiamente."""
+    global running
+    logger.info(f"Señal {signum} recibida. Cerrando producer...")
+    running = False
 
 def fetch_crypto_prices():
     """Consulta los precios actuales desde CoinGecko."""
@@ -88,12 +95,14 @@ def create_producer(retries=10, base_delay=2):
     raise RuntimeError("No se pudo conectar a Kafka tras varios intentos.")
 
 def main():
+    signal.signal(signal.SIGINT, handle_shutdown)
+    signal.signal(signal.SIGTERM, handle_shutdown)
     # Crear producer
     producer = create_producer()
     logger.info(f"Producer conectado a {KAFKA_BOOTSTRAP_SERVERS}")
 
     # Loop principal
-    while True:
+    while running:
         try:
             api_data = fetch_crypto_prices()
             records = build_records(api_data)
