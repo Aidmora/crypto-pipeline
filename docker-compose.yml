@@ -33,6 +33,22 @@ services:
     networks:
       - pipeline-network
 
+  # ============== PRODUCER ==============
+  producer:
+    build:
+      context: ./producer
+      dockerfile: Dockerfile
+    container_name: producer
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: crypto-prices
+      FETCH_INTERVAL_SECONDS: 10
+    restart: unless-stopped
+    networks:
+      - pipeline-network
+      
 networks:
   pipeline-network:
     driver: bridge
