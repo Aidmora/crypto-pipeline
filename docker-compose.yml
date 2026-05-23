@@ -48,7 +48,24 @@ services:
     restart: unless-stopped
     networks:
       - pipeline-network
-      
+# ============== CONSUMER (Spark Streaming) ==============
+  consumer:
+    build:
+      context: ./consumer
+      dockerfile: Dockerfile
+    container_name: consumer
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: crypto-prices
+      SPARK_MASTER: local[*]
+      DATA_PATH: /app/data
+    volumes:
+      - ./consumer/data:/app/data
+    networks:
+      - pipeline-network
+
 networks:
   pipeline-network:
     driver: bridge
