@@ -47,7 +47,7 @@ python producer.py
 }
 ```
 
-## 🪙 Monedas consultadas
+## Monedas consultadas
 
 - Bitcoin (BTC)
 - Ethereum (ETH)
