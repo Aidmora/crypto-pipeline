@@ -4,10 +4,15 @@ Spark Structured Streaming Consumer.
 Lee precios de criptomonedas desde un topic de Kafka y los persiste
 en formato Parquet siguiendo la arquitectura Medallion (Bronze).
 """
-
 import logging
 import os
-
+from pyspark.sql.functions import col, from_json, to_timestamp, current_timestamp
+from pyspark.sql.types import (
+    StructType,
+    StructField,
+    StringType,
+    DoubleType,
+)
 from pyspark.sql import SparkSession
 
 
@@ -23,7 +28,38 @@ logging.basicConfig(
 )
 logger = logging.getLogger("crypto-consumer")
 
+#==== Funciones de parseo======
+def get_crypto_schema() -> StructType:
+    """
+    Define el esquema esperado de los mensajes JSON desde Kafka.
+    Debe coincidir exactamente con la estructura del Producer.
+    """
+    return StructType([
+        StructField("coin", StringType(), True),
+        StructField("price_usd", DoubleType(), True),
+        StructField("market_cap_usd", DoubleType(), True),
+        StructField("volume_24h_usd", DoubleType(), True),
+        StructField("change_24h_pct", DoubleType(), True),
+        StructField("timestamp", StringType(), True),
+    ])
 
+
+def parse_messages(raw_stream, schema):
+    """
+    Parsea los mensajes JSON y aplica el esquema definido.
+    
+    Returns:
+        DataFrame con columnas tipadas + event_time + ingestion_time.
+    """
+    return (
+        raw_stream
+        .selectExpr("CAST(value AS STRING) as json_value")
+        .select(from_json(col("json_value"), schema).alias("data"))
+        .select("data.*")
+        .withColumn("event_time", to_timestamp(col("timestamp")))
+        .withColumn("ingestion_time", current_timestamp())
+    )
+#=== Funciones principales ====
 def create_spark_session() -> SparkSession:
     """Crea una sesión Spark configurada con el conector de Kafka."""
     spark = (
@@ -70,10 +106,18 @@ def main():
     logger.info("Esquema del stream de Kafka:")
     raw_stream.printSchema()
     
-    # Imprimir a consola para validar
+    #Validar lectura imprimiendo a consola
+
     query = (
         raw_stream
-        .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)", "topic", "partition", "offset", "timestamp")
+        .selectExpr(
+            "CAST(key AS STRING)",
+            "CAST(value AS STRING)",
+            "topic",
+            "partition",
+            "offset",
+            "timestamp",
+        )
         .writeStream
         .format("console")
         .outputMode("append")
