@@ -41,19 +41,52 @@ def create_spark_session() -> SparkSession:
     logger.info(f"Spark session creada (versión {spark.version})")
     return spark
 
-
+def read_kafka_stream(spark: SparkSession):
+    """
+    Lee mensajes desde Kafka como un stream continuo.
+    
+    Returns:
+        DataFrame con columnas: key, value, topic, partition, offset, timestamp.
+        Los valores vienen como bytes; el parsing lo hacemos después.
+    """
+    logger.info(f"Conectando al topic '{KAFKA_TOPIC}' en {KAFKA_BOOTSTRAP_SERVERS}")
+    return (
+        spark.readStream
+        .format("kafka")
+        .option("kafka.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS)
+        .option("subscribe", KAFKA_TOPIC)
+        .option("startingOffsets", "latest")
+        .option("failOnDataLoss", "false")
+        .load()
+    )
+    
 def main():
     logger.info("Iniciando Crypto Consumer (Spark Streaming)")
     spark = create_spark_session()
+    # Leer el stream desde Kafka
+    raw_stream = read_kafka_stream(spark)
     
-    # Mantenemos vivo el contexto para verificar que arranca bien
-    logger.info("Spark session activa. Presiona Ctrl+C para detener.")
+    # Verificar el esquema (esto es eager, se ejecuta inmediatamente)
+    logger.info("Esquema del stream de Kafka:")
+    raw_stream.printSchema()
+    
+    # Imprimir a consola para validar
+    query = (
+        raw_stream
+        .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)", "topic", "partition", "offset", "timestamp")
+        .writeStream
+        .format("console")
+        .outputMode("append")
+        .option("truncate", "false")
+        .trigger(processingTime="10 seconds")
+        .start()
+    )
     
     try:
-        # Por ahora solo mantenemos viva la sesión
-        spark.streams.awaitAnyTermination()
+        query.awaitTermination()
     except KeyboardInterrupt:
-        logger.info("Cerrando Spark session...")
+        logger.info("Deteniendo stream...")
+        query.stop()
         spark.stop()
 
 
