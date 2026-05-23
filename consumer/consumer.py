@@ -20,6 +20,10 @@ from pyspark.sql import SparkSession
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:29092")
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "crypto-prices")
 SPARK_MASTER = os.getenv("SPARK_MASTER", "local[*]")
+# Rutas de datos
+DATA_PATH = os.getenv("DATA_PATH", "/app/data")
+BRONZE_PATH = f"{DATA_PATH}/bronze"
+CHECKPOINT_BRONZE = f"{DATA_PATH}/_checkpoints/bronze"
 
 # ============== Logging ==============
 logging.basicConfig(
@@ -95,29 +99,50 @@ def read_kafka_stream(spark: SparkSession):
         .option("failOnDataLoss", "false")
         .load()
     )
+def write_to_bronze(raw_stream):
+    """
+    Persiste los datos crudos en la capa Bronze (Parquet).
     
+    Bronze guarda los mensajes tal como llegaron, sin transformaciones.
+    Permite reprocesar todo el pipeline si cambia la lógica de Silver.
+    """
+    logger.info(f"Bronze writer escribiendo a: {BRONZE_PATH}")
+    
+    bronze_df = raw_stream.selectExpr(
+        "CAST(key AS STRING) as key",
+        "CAST(value AS STRING) as value",
+        "topic",
+        "partition",
+        "offset",
+        "timestamp as kafka_timestamp",
+    )
+    
+    return (
+        bronze_df
+        .writeStream
+        .format("parquet")
+        .outputMode("append")
+        .option("path", BRONZE_PATH)
+        .option("checkpointLocation", CHECKPOINT_BRONZE)
+        .trigger(processingTime="10 seconds")
+        .queryName("bronze_writer")
+        .start()
+    )
 def main():
     logger.info("Iniciando Crypto Consumer (Spark Streaming)")
     spark = create_spark_session()
-    # Leer el stream desde Kafka
+    schema = get_crypto_schema()
+    
     raw_stream = read_kafka_stream(spark)
     
-    # Verificar el esquema (esto es eager, se ejecuta inmediatamente)
-    logger.info("Esquema del stream de Kafka:")
-    raw_stream.printSchema()
+    # Bronze: datos crudos
+    bronze_query = write_to_bronze(raw_stream)
+    logger.info("✓ Bronze writer iniciado")
     
-    #Validar lectura imprimiendo a consola
-
-    query = (
-        raw_stream
-        .selectExpr(
-            "CAST(key AS STRING)",
-            "CAST(value AS STRING)",
-            "topic",
-            "partition",
-            "offset",
-            "timestamp",
-        )
+    # Console: para debugging visual
+    parsed_stream = parse_messages(raw_stream, schema)
+    console_query = (
+        parsed_stream
         .writeStream
         .format("console")
         .outputMode("append")
@@ -125,12 +150,16 @@ def main():
         .trigger(processingTime="10 seconds")
         .start()
     )
+    logger.info("✓ Console writer iniciado")
+    
+    logger.info("Pipeline en ejecución. Ctrl+C para detener.")
     
     try:
-        query.awaitTermination()
+        spark.streams.awaitAnyTermination()
     except KeyboardInterrupt:
-        logger.info("Deteniendo stream...")
-        query.stop()
+        logger.info("Deteniendo streams...")
+        for query in spark.streams.active:
+            query.stop()
         spark.stop()
 
 

@@ -1,4 +1,7 @@
 # Data
+consumer/data/bronze/
+consumer/data/silver/
+consumer/data/_checkpoints/
 data/bronze/
 data/silver/
 data/_checkpoints/
