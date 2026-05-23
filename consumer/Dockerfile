@@ -1,14 +1,17 @@
-FROM bitnami/spark:3.5.1
+FROM apache/spark:3.5.1
 
 # Cambiar a root para instalar dependencias
 USER root
 
 WORKDIR /app
 
-# Asegurar que pip esté actualizado
-RUN pip install --no-cache-dir --upgrade pip
+# Instalar pip si no está y actualizar
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir --upgrade pip
 
-# Copiar e instalar dependencias Python (mejor cache de Docker)
+# Copiar e instalar dependencias Python
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -19,7 +22,7 @@ COPY consumer.py .
 RUN mkdir -p /app/data && chmod -R 777 /app/data
 
 # Arrancar con spark-submit para incluir el conector Kafka
-CMD ["spark-submit", \
+CMD ["/opt/spark/bin/spark-submit", \
      "--packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1", \
      "--master", "local[*]", \
      "consumer.py"]
